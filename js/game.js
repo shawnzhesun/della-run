@@ -30,6 +30,7 @@ function Runner(outerContainerId, opt_config) {
   this.canvasCtx = null;
 
   this.tRex = null;
+  this.gameTitle = null;
 
   this.distanceMeter = null;
   this.distanceRan = 0;
@@ -85,7 +86,7 @@ var DEFAULT_WIDTH = 600;
 var FPS = 60;
 
 /** @const */
-var IS_HIDPI = window.devicePixelRatio > 1;
+var IS_HIDPI = 1;
 
 /** @const */
 var IS_IOS = window.navigator.userAgent.indexOf('CriOS') > -1 ||
@@ -102,7 +103,7 @@ var IS_TOUCH_ENABLED = 'ontouchstart' in window;
  * @enum {number}
  */
 Runner.config = {
-  ACCELERATION: 0.001,
+  ACCELERATION: 0.003,
   BG_CLOUD_SPEED: 0.2,
   BOTTOM_PAD: 10,
   CLEAR_TIME: 3000,
@@ -110,12 +111,12 @@ Runner.config = {
   GAMEOVER_CLEAR_TIME: 750,
   GAP_COEFFICIENT: 0.6,
   GRAVITY: 0.6,
-  INITIAL_JUMP_VELOCITY: 12,
+  INITIAL_JUMP_VELOCITY: 20,
   MAX_CLOUDS: 6,
   MAX_OBSTACLE_LENGTH: 3,
   MAX_OBSTACLE_DUPLICATION: 2,
-  MAX_SPEED: 13,
-  MIN_JUMP_HEIGHT: 35,
+  MAX_SPEED: 20,
+  MIN_JUMP_HEIGHT: 25,
   MOBILE_SPEED_COEFFICIENT: 1.2,
   RESOURCE_TEMPLATE_ID: 'audio-resources',
   SPEED: 6,
@@ -170,6 +171,7 @@ Runner.spriteDefinition = {
     HORIZON: {x: 2,y: 104},
     PTERODACTYL: {x: 260,y: 2},
     RESTART: {x: 2,y: 2},
+    HEART: {x: 838+7, y: 2},
     TEXT_SPRITE: {x: 954,y: 2},
     TREX: {x: 1338,y: 2}
   }
@@ -364,12 +366,15 @@ Runner.prototype = {
 
     this.outerContainerEl.appendChild(this.containerEl);
 
+
     if (IS_MOBILE) {
       this.createTouchController();
     }
 
     this.startListening();
     this.update();
+
+
 
     window.addEventListener(Runner.events.RESIZE,
         this.debounceResize.bind(this));
@@ -515,6 +520,14 @@ Runner.prototype = {
       this.runningTime += deltaTime;
       var hasObstacles = this.runningTime > this.config.CLEAR_TIME;
 
+      if (!this.gameTitle) {
+        this.gameTitle = new GameTitle(this.canvas, this.spriteDef.TEXT_SPRITE, this.dimensions);
+      } else {
+         if (this.distanceMeter.getActualDistance(Math.ceil(this.distanceRan)) <= 20) {
+           this.gameTitle.draw();
+         }
+      }
+
       // First jump triggers the intro.
       if (this.tRex.jumpCount == 1 && !this.playingIntro) {
         this.playIntro();
@@ -541,6 +554,16 @@ Runner.prototype = {
       } else {
         this.gameOver();
       }
+
+      // Check the score
+      if (this.distanceMeter.getActualDistance(Math.ceil(this.distanceRan)) >= 926) {
+        this.gameFinish();
+      }
+
+      // // Check the score
+      // if (this.distanceMeter.getActualDistance(Math.ceil(this.distanceRan)) >= 20 && this.gameTitle) {
+      //   this.gameTitle.clear();
+      // }
 
       var playAcheivementSound = this.distanceMeter.update(deltaTime,
           Math.ceil(this.distanceRan));
@@ -737,6 +760,37 @@ Runner.prototype = {
           this.dimensions);
     } else {
       this.gameOverPanel.draw();
+    }
+
+    // Update the high score.
+    if (this.distanceRan > this.highestScore) {
+      this.highestScore = Math.ceil(this.distanceRan);
+      this.distanceMeter.setHighScore(this.highestScore);
+    }
+
+    // Reset the time clock.
+    this.time = getTimeStamp();
+  },
+
+   /**
+   * Game finish state.
+   */
+  gameFinish: function() {
+    vibrate(200);
+
+    this.stop();
+    this.crashed = true;
+    this.distanceMeter.acheivement = false;
+
+    this.tRex.update(100, Trex.status.WAITING);
+
+    // Game finish panel.
+    if (!this.gameWinPanel) {
+      this.gameWinPanel = new GameWinPanel(this.canvas,
+          this.spriteDef.TEXT_SPRITE, this.spriteDef.HEART,
+          this.dimensions);
+    } else {
+      this.gameWinPanel.draw();
     }
 
     // Update the high score.
@@ -1025,6 +1079,202 @@ GameOverPanel.prototype = {
         dimensions.RESTART_HEIGHT);
   }
 };
+
+//******************************************************************************
+
+
+/**
+ * Game win panel.
+ * @param {!HTMLCanvasElement} canvas
+ * @param {Object} textImgPos
+ * @param {Object} restartImgPos
+ * @param {!Object} dimensions Canvas dimensions.
+ * @constructor
+ */
+function GameWinPanel(canvas, textImgPos, restartImgPos, dimensions) {
+  this.canvas = canvas;
+  this.canvasCtx = canvas.getContext('2d');
+  this.canvasDimensions = dimensions;
+  this.textImgPos = textImgPos;
+  this.restartImgPos = restartImgPos;
+  this.draw();
+};
+
+
+/**
+ * Dimensions used in the panel.
+ * @enum {number}
+ */
+GameWinPanel.dimensions = {
+  TEXT_X: 0,
+  TEXT_Y: 33,
+  TEXT_WIDTH: 191,
+  TEXT_HEIGHT: 11,
+  RESTART_WIDTH: 50,
+  RESTART_HEIGHT: 50
+};
+
+
+GameWinPanel.prototype = {
+  /**
+   * Update the panel dimensions.
+   * @param {number} width New canvas width.
+   * @param {number} opt_height Optional new canvas height.
+   */
+  updateDimensions: function(width, opt_height) {
+    this.canvasDimensions.WIDTH = width;
+    if (opt_height) {
+      this.canvasDimensions.HEIGHT = opt_height;
+    }
+  },
+
+  /**
+   * Draw the panel.
+   */
+  draw: function() {
+    var dimensions = GameWinPanel.dimensions;
+
+    var centerX = this.canvasDimensions.WIDTH / 2;
+
+    // Game over text.
+    var textSourceX = dimensions.TEXT_X;
+    var textSourceY = dimensions.TEXT_Y;
+    var textSourceWidth = dimensions.TEXT_WIDTH;
+    var textSourceHeight = dimensions.TEXT_HEIGHT;
+
+    var textTargetX = Math.round(centerX - (dimensions.TEXT_WIDTH / 2));
+    var textTargetY = Math.round((this.canvasDimensions.HEIGHT - 25) / 2);
+    var textTargetWidth = dimensions.TEXT_WIDTH;
+    var textTargetHeight = dimensions.TEXT_HEIGHT;
+
+    var restartSourceWidth = dimensions.RESTART_WIDTH;
+    var restartSourceHeight = dimensions.RESTART_HEIGHT;
+    var restartTargetX = centerX - (dimensions.RESTART_WIDTH / 2);
+    var restartTargetY = 2;
+
+    if (IS_HIDPI) {
+      textSourceY *= 2;
+      textSourceX *= 2;
+      textSourceWidth *= 2;
+      textSourceHeight *= 2;
+      restartSourceWidth *= 2;
+      restartSourceHeight *= 2;
+    }
+
+    textSourceX += this.textImgPos.x;
+    textSourceY += this.textImgPos.y;
+
+    // Game over text from sprite.
+    this.canvasCtx.drawImage(Runner.imageSprite,
+        textSourceX, textSourceY, textSourceWidth, textSourceHeight,
+        textTargetX, textTargetY, textTargetWidth, textTargetHeight);
+
+    // Restart button.
+    this.canvasCtx.drawImage(Runner.imageSprite,
+        this.restartImgPos.x, this.restartImgPos.y,
+        restartSourceWidth, restartSourceHeight,
+        restartTargetX, restartTargetY, dimensions.RESTART_WIDTH,
+        dimensions.RESTART_HEIGHT);
+  }
+};
+
+//******************************************************************************
+
+
+/**
+ * Game title
+ * @param {!HTMLCanvasElement} canvas
+ * @param {Object} textImgPos
+ * @param {Object} restartImgPos
+ * @param {!Object} dimensions Canvas dimensions.
+ * @constructor
+ */
+function GameTitle(canvas, textImgPos, dimensions) {
+  this.canvas = canvas;
+  this.canvasCtx = canvas.getContext('2d');
+  this.canvasDimensions = dimensions;
+  this.textImgPos = textImgPos;
+  this.draw();
+};
+
+
+/**
+ * Dimensions used in the panel.
+ * @enum {number}
+ */
+GameTitle.dimensions = {
+  TEXT_X: 570,
+  TEXT_Y: 10,
+  TEXT_WIDTH: 150,
+  TEXT_HEIGHT: 35
+};
+
+
+GameTitle.prototype = {
+  /**
+   * Update the game title dimensions.
+   * @param {number} width New canvas width.
+   * @param {number} opt_height Optional new canvas height.
+   */
+  updateDimensions: function(width, opt_height) {
+    this.canvasDimensions.WIDTH = width;
+    if (opt_height) {
+      this.canvasDimensions.HEIGHT = opt_height;
+    }
+  },
+
+  /**
+   * Draw the game title.
+   */
+  draw: function() {
+    var dimensions = GameTitle.dimensions;
+
+    var centerX = this.canvasDimensions.WIDTH / 2;
+
+    // Game over text.
+    var textSourceX = dimensions.TEXT_X;
+    var textSourceY = dimensions.TEXT_Y;
+    var textSourceWidth = dimensions.TEXT_WIDTH;
+    var textSourceHeight = dimensions.TEXT_HEIGHT;
+
+    var textTargetX = Math.round(centerX - (dimensions.TEXT_WIDTH / 2));
+    var textTargetY = Math.round((this.canvasDimensions.HEIGHT - 25) / 3);
+    var textTargetWidth = dimensions.TEXT_WIDTH;
+    var textTargetHeight = dimensions.TEXT_HEIGHT;
+
+    if (IS_HIDPI) {
+      textSourceY *= 2;
+      textSourceX *= 2;
+      textSourceWidth *= 2;
+      textSourceHeight *= 2;
+    }
+
+    textSourceX += this.textImgPos.x;
+    textSourceY += this.textImgPos.y;
+
+    // Game title text from sprite.
+    this.canvasCtx.drawImage(Runner.imageSprite,
+        textSourceX, textSourceY, textSourceWidth, textSourceHeight,
+        textTargetX, textTargetY, textTargetWidth, textTargetHeight);
+
+  },
+
+  /**
+   * Clear the game title.
+   */
+  clear: function() {
+    
+    var centerX = this.canvasDimensions.WIDTH / 2;
+    var textSourceWidth = GameTitle.dimensions.TEXT_WIDTH;
+    var textSourceHeight = GameTitle.dimensions.TEXT_HEIGHT;
+
+    var textTargetX = Math.round(centerX - (GameTitle.dimensions.TEXT_WIDTH / 2));
+    var textTargetY = Math.round((this.canvasDimensions.HEIGHT - 25) / 3);
+
+    this.canvasCtx.clearRect(textTargetX, textTargetY, textSourceWidth, textSourceHeight);
+  }
+};
+
 
 
 //******************************************************************************
@@ -1509,7 +1759,7 @@ Trex.status = {
  * Blinking coefficient.
  * @const
  */
-Trex.BLINK_TIMING = 7000;
+Trex.BLINK_TIMING = 1000;
 
 
 /**
@@ -1518,7 +1768,7 @@ Trex.BLINK_TIMING = 7000;
  */
 Trex.animFrames = {
   WAITING: {
-    frames: [44, 0],
+    frames: [44, 88],
     msPerFrame: 1000 / 3
   },
   RUNNING: {
@@ -1591,7 +1841,7 @@ Trex.prototype = {
       this.xPos += Math.round((this.config.START_X_POS /
           this.config.INTRO_DURATION) * deltaTime);
     }
-
+    
     if (this.status == Trex.status.WAITING) {
       this.blink(getTimeStamp());
     } else {
@@ -1667,10 +1917,8 @@ Trex.prototype = {
    */
   blink: function(time) {
     var deltaTime = time - this.animStartTime;
-
     if (deltaTime >= this.blinkDelay) {
-      this.draw(this.currentAnimFrames[this.currentFrame], 0);
-
+      this.draw(88, 0);
       if (this.currentFrame == 1) {
         // Set new random delay to blink.
         this.setBlinkDelay();
