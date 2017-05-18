@@ -72,6 +72,16 @@ function Runner(outerContainerId, opt_config) {
 }
 window['Runner'] = Runner;
 
+/**
+ *
+ */
+function daysBetween(date1, date2) {
+  var one_day=1000*60*60*24;    // Convert both dates to milliseconds
+  var date1_ms = date1.getTime();
+  var date2_ms = date2.getTime();    // Calculate the difference in milliseconds
+  var difference_ms = date2_ms - date1_ms;        // Convert back to days and return
+  return Math.round(difference_ms/one_day);
+}
 
 /**
  * Default game width.
@@ -79,6 +89,14 @@ window['Runner'] = Runner;
  */
 var DEFAULT_WIDTH = 600;
 
+var today= new Date();
+var anniversary  = new Date(2014, 10, 5);
+var diff = daysBetween(anniversary, today);
+
+/**
+ * Distance for the win.
+ */
+var WIN_DISTANCE = diff;
 /**
  * Frames per second.
  * @const
@@ -556,7 +574,7 @@ Runner.prototype = {
       }
 
       // Check the score
-      if (this.distanceMeter.getActualDistance(Math.ceil(this.distanceRan)) >= 926) {
+      if (this.distanceMeter.getActualDistance(Math.ceil(this.distanceRan)) >= WIN_DISTANCE) {
         this.gameFinish();
       }
 
@@ -770,6 +788,11 @@ Runner.prototype = {
 
     // Reset the time clock.
     this.time = getTimeStamp();
+
+    var message = "月呀，你肯定又忘了我们已经在一起 " + diff + " 天啦！\n" +
+    "这游戏是不是很难玩呀哈哈哈哈哈，我们在一起越久就会变得越难通关哟！\n" +
+    "你需要打到我们在一起天数的分哟！通关有惊喜~~"
+    alert(message);
   },
 
    /**
@@ -801,6 +824,9 @@ Runner.prototype = {
 
     // Reset the time clock.
     this.time = getTimeStamp();
+
+    var message = "月好厉害呀！，我们已经在一起 " + diff + " 天啦！";
+    alert(message);
   },
 
   stop: function() {
@@ -1263,7 +1289,7 @@ GameTitle.prototype = {
    * Clear the game title.
    */
   clear: function() {
-    
+
     var centerX = this.canvasDimensions.WIDTH / 2;
     var textSourceWidth = GameTitle.dimensions.TEXT_WIDTH;
     var textSourceHeight = GameTitle.dimensions.TEXT_HEIGHT;
@@ -1841,7 +1867,7 @@ Trex.prototype = {
       this.xPos += Math.round((this.config.START_X_POS /
           this.config.INTRO_DURATION) * deltaTime);
     }
-    
+
     if (this.status == Trex.status.WAITING) {
       this.blink(getTimeStamp());
     } else {
@@ -2726,5 +2752,3 @@ Horizon.prototype = {
 
 //start the game
 new Runner('.interstitial-wrapper');
-
-
