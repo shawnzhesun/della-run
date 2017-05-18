@@ -792,7 +792,8 @@ Runner.prototype = {
     var message = "月呀，你肯定又忘了我们已经在一起 " + diff + " 天啦！\n" +
     "这游戏是不是很难玩呀哈哈哈哈哈，我们在一起越久就会变得越难通关哟！\n" +
     "你需要打到我们在一起天数的分哟！通关有惊喜~~"
-    alert(message);
+
+    setTimeout(function(){ alert(message); }, 1000);
   },
 
    /**
